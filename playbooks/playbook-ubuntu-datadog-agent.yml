@@ -1,0 +1,46 @@
+---
+- name: Ubuntu - data dog agents
+  hosts: debian_family:!golden_images
+  ignore_unreachable: true
+  become: true
+  become_method: ansible.builtin.sudo
+
+  roles:
+    - {role: datadog.datadog, become: yes}
+
+  vars:
+    # https://docs.datadoghq.com/agent/basic_agent_usage/ansible/
+    datadog_api_key: "REDACTED"
+    datadog_site: "us5.datadoghq.com"
+    datadog_config:
+      process_config:
+        enabled: "true"  # type: string
+      apm_config:
+        enabled: true
+      network_config:
+        enabled: true
+      runtime_security_config:
+        enabled: true
+      logs_enabled: true  # available with Agent v6 and v7
+    datadog_checks:
+      process:
+        init_config:
+        instances:
+          - name: ssh
+            search_string: ['ssh', 'sshd']
+          - name: syslog
+            search_string: ['rsyslog']
+            cpu_check_interval: 0.2
+            exact_match: true
+            ignore_denied_access: true
+
+  tasks:
+    - name: Load variables from variables-homelab.yaml
+      ansible.builtin.include_vars:
+        file: variables-homelab.yaml
+
+    - name: Manually restart Datadog service to apply any config changes
+      ansible.builtin.service:
+        name: datadog-agent
+        state: restarted
+        enabled: true

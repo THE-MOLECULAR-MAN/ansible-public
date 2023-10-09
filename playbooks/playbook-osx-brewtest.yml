@@ -1,0 +1,39 @@
+---
+- name: Homebrew fast test 1
+  hosts: localhost
+  connection: local
+
+  vars:
+    user_home_directory: "/Users/{{ lookup('env', 'USER') }}"
+
+  tasks:
+    - name: Load variables from variables-homelab.yaml
+      ansible.builtin.include_vars:
+        file: variables-homelab.yaml
+
+    # this does NOT work, seems like it can't handle more than 1 package at
+    # a time
+    # - name: Install homebrew cask packages from text file
+    #   community.general.homebrew:
+    #     name: "{{lookup('ansible.builtin.file', '{{user_home_directory}}/source_code/ansible/playbooks/vars/homebrew-formulae-present.txt') | replace('\n', ' ') }}"
+    #     state: "present"
+
+    # this consistently only takes 3-4 seconds when there are no changes - Macbook air
+    # but it's harder to track changes
+    # HOMEBREW_NO_INSTALL_CLEANUP=TRUE HOMEBREW_NO_ENV_HINTS=1 
+    - name: Install brew packages via "command"
+      ansible.builtin.command: brew install {{ lookup('ansible.builtin.file', '{{user_home_directory}}/source_code/ansible/playbooks/vars/homebrew-formulae-present.txt') | replace('\n', ' ') }}
+      register: brew_batch_install_via_command_output
+
+    - name: Linking brew packages via "command"
+      ansible.builtin.command: brew link --overwrite {{ lookup('ansible.builtin.file', '{{user_home_directory}}/source_code/ansible/playbooks/vars/homebrew-formulae-present.txt') | replace('\n', ' ') }}
+      register: brew_batch_install_via_command_output
+
+    # Error: Could not symlink lib/python3.11/site-packages/pycparser/__init__.py\nTarget /usr/local/lib/python3.11/site-packages/pycparser/__init__.py\nalready exists. You may want to remove it:\n  rm '/usr/local/lib/python3.11/site-packages/pycparser/__init__.py'\n\nTo force the link and overwrite all conflicting files:\n  brew link --overwrite pycparser\n\nTo list all files that would be deleted:\n  brew link --overwrite --dry-run pycparser", "stderr_lines": ["Warning: Already linked: /usr/local/Cellar/ack/3.7.0", "Warn
+    # tim@bespin ~/source_code/ansible % brew link --overwrite pycparser
+    # Linking /usr/local/Cellar/pycparser/2.21...
+    # Error: Could not symlink lib/python3.11/site-packages/pycparser/__init__.py
+    # /usr/local/lib/python3.11/site-packages/pycparser is not writable.
+    - name: Output debug
+      ansible.builtin.debug:
+        msg: "{{ brew_batch_install_via_command_output }}"

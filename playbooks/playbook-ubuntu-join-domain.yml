@@ -1,0 +1,81 @@
+---
+- name: Ubuntu - add to a domain, works even if already on domain
+  hosts: to_join_domain
+  gather_facts: true        # force it for new assets
+  any_errors_fatal: true    # very important for this particular playbook
+  ignore_unreachable: false
+  become: true
+  become_method: ansible.builtin.sudo
+  # local admin account, not on Active Directory
+  # can't use variables here either since they haven't been loaded yet
+  remote_user: "thrawn"
+
+  vars_prompt:
+    - name: domain_admin_password
+      # can't use variables here yet since they haven't been loaded yet
+      prompt: "Password for domain admin"
+
+  tasks:
+    - name: Load variables from variables-homelab.yaml
+      ansible.builtin.include_vars:
+        file: variables-homelab.yaml
+
+    - name: Apt packages required for joining domain
+      ansible.builtin.apt:
+        name: realmd,libnss-sss,libpam-sss,sssd,sssd-tools,adcli,
+          samba-common-bin,oddjob,oddjob-mkhomedir,packagekit
+        state: present
+        lock_timeout: "{{ apt_lock_timeout }}"
+
+    - name: Attempt to discover domain
+      # realm discover returns error code 1 if not found. Don't need to
+      # process output
+      ansible.builtin.command: "realm discover {{ domain_suffix_caps }}"
+      changed_when: false
+      register: debug_realm_discover
+      # if an error is returned it will immediately bail on whole playbook
+      # don't need to error catch
+
+    - name: Check if already joined to the domain
+      ansible.builtin.command: id {{ active_directory_user_to_test }}
+      # this will fail and not register ad_status if error occurs
+      # this will also fail if the Linux server is powered on BEFORE the
+      # Windows domain controller is powered on. If the domain controller
+      # was powered on after the Linux server then reboot the Linux server
+      # and retry this script.
+      register: check_ad_status
+      changed_when: false
+      # will return error code if not joined to the domain, okay
+      ignore_errors: true
+
+    # - name: DEBUG print ad_status
+    #  ansible.builtin.debug:
+    #    var: check_ad_status.stdout_lines[0]
+
+    - name: Join the domain
+      ansible.builtin.shell: "echo {{ domain_admin_password }} | sudo realm join --verbose {{ domain_suffix_caps }} -U {{ domain_admin_username }}@{{ domain_suffix_caps }}"
+      register: debug_domain_join_output
+      when: check_ad_status.failed
+
+    - name: Write to PAM config file
+      # ansible.builtin.copy:
+      #   content: "{{ pam_config_file_contents }}"
+      #   dest: /usr/share/pam-configs/mkhomedir
+      ansible.builtin.template:
+        src: templates/pam-configs-mkhomedir.template
+        dest: /usr/share/pam-configs/mkhomedir
+        owner: root
+        mode: 0644  # must start with leading 0
+        # force: yes # defaults to yes
+
+    - name: Enable mkhomedir for PAM
+      ansible.builtin.command: "sudo pam-auth-update --enable mkhomedir --force"
+      # no easy way to know if this command changed anything
+      changed_when: false
+      when: check_ad_status.failed
+
+    - name: Restart sssd service to reload PAM config
+      ansible.builtin.service:
+        name: sssd
+        state: restarted
+      when: check_ad_status.failed

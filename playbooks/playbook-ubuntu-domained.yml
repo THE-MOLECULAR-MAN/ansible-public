@@ -1,0 +1,112 @@
+---
+# NEEDS_TO_BE_SANTIZIED_BEFORE_PUBLIC_RELEASE
+- name: Ubuntu - permanent hosts on the domain with agents
+  hosts: debian_family:!golden_images:!intentionally_not_domained
+  ignore_unreachable: true
+  become: true
+  become_method: ansible.builtin.sudo
+  # Do not remove even though it is not referenced
+  # remote_user: "{{ ansible_service_account_username_with_domain }}"
+
+  tasks:
+    - name: Load variables from variables-homelab.yaml
+      ansible.builtin.include_vars:
+        file: variables-homelab.yaml
+
+    - name: Make sure hostname is full FQDN with proper domain suffix
+      ansible.builtin.hostname:
+        name: "{{ ansible_hostname }}.{{ domain_suffix_lower }}"
+
+    - name: Verify joined to domain
+      ansible.builtin.command: id {{ active_directory_user_to_test }}
+      # register: ad_status
+      changed_when: false
+      # I think ignore_errors might be required. the command sometimes returns
+      # non-zero error codes when things are okay
+      ignore_errors: true
+
+    - name: Allow members of AD group Domain Admins sudo access
+      community.general.sudoers:
+        name: domain-admin-local-sudo
+        state: present
+        # don't use the built-in one with spaces or start it with a % in
+        # Ansible, has problems
+        # make a new AD group called "domainadmins" that has
+        # 1 member group - "Domain Admins"
+        group: "domainadmins@{{ domain_suffix_caps }}"
+        commands: ALL
+
+    - name: Allow members of AD group localadmins sudo access
+      community.general.sudoers:
+        name: localadmins-local-sudo
+        state: present
+        group: "localadmins@{{ domain_suffix_caps }}"
+        commands: ALL
+
+    # the service account provisioning must be AFTER the sudoers edits
+    - name: Provision ansible's service account from AD on local system
+        and create the proper home directories
+      # don't change anything here
+      # have to manually create the directory, the "user" module doesn't work
+      # with domained accounts. also make sure that the domain name is
+      # LOWER case, as Linux creates it, not upper case.
+      ansible.builtin.file:
+        path: "/home/{{ ansible_service_account_username_with_domain }}/.ssh"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_service_account_username_with_domain }}"
+        group: "domain users@int.butters.me"
+
+    - name: Set ansible service account ssh public key
+      ansible.posix.authorized_key:
+        user: "{{ ansible_service_account_username_with_domain }}"
+        # it's a capitalization issue, ansible is forcing domain lower case
+        # prior command created directory with uppercase name. Linux
+        # auto creates lower case domain
+        state: present
+        manage_dir: true
+        key: "{{ lookup('file', keyfile_fullpath) }}"
+
+    - name: Provision Domain Admin's home directory
+      # required to avoid error on next step.
+      # the manage_dir attribute only controls the .ssh directory, not
+      # parent directories like the user directory
+      ansible.builtin.file:
+        path: "/home/{{ domain_admin_username_with_domain }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ domain_admin_username_with_domain }}"
+        group: "domain users@int.butters.me"
+
+    - name: Set domain admin account ssh public key
+      # required, don't skip this.
+      # not the svc-ansible key
+      ansible.posix.authorized_key:
+        user: "{{ domain_admin_username_with_domain }}"
+        state: present
+        manage_dir: true
+        key: "{{ lookup('file', keyfile_fullpath) }}"
+
+    - name: Set local admin account ssh public key
+      # required, don't skip this.
+      ansible.posix.authorized_key:
+        user: "{{ local_ubuntu_admin_username }}"
+        state: present
+        manage_dir: true
+        key: "{{ lookup('file', keyfile_fullpath) }}"
+
+    - name: Disable Ubuntu firewall
+      community.general.ufw:
+        state: disabled
+      # added condition since Raspberry Pi doesn't have this command
+      when: ansible_distribution == 'Ubuntu' and ansible_architecture == "x86_64"
+
+    - name: Stop and disable firewall service
+      ansible.builtin.service:
+        name: ufw
+        state: stopped
+        enabled: false
+      # added condition since Raspberry Pi doesn't have this command
+      when: ansible_distribution == 'Ubuntu' and ansible_architecture == "x86_64"
+
+  handlers:

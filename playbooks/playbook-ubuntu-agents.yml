@@ -1,0 +1,104 @@
+---
+# CheckMK: http://checkmk.int.butters.me/homelab2/check_mk/login.py
+# NEEDS_TO_BE_SANTIZIED_BEFORE_PUBLIC_RELEASE
+- name: Ubuntu - permanent hosts with agents, may or may not be on domain
+  hosts: debian_family:!golden_images
+  ignore_unreachable: true
+  become: true
+  become_method: ansible.builtin.sudo
+  # /opt/rapid7/ir_agent/ir_agent --version' # 3.1.6.42'
+  # sudo cat /opt/rapid7/ir_agent/components/insight_agent/common/agent.log \
+  # | grep "Agent Info" | tail -1l
+
+  tasks:
+    - name: Load variables from variables-homelab.yaml
+      ansible.builtin.include_vars:
+        file: variables-homelab.yaml
+
+    - name: Test if Rapid7 agent is installed
+      ansible.builtin.stat:
+        path: "{{ rapid7_agent_binary_path }}"
+      register: r7_agent_exist
+
+    # - name: Debug output of r7_agent_exist
+    #  ansible.builtin.debug:
+    #    msg: "r7_agent_exist.stat for {{ ansible_hostname }} = {{ r7_agent_exist.stat }}"
+
+    - name: Download Rapid7 Linux agent installer (if not installed)
+      # don't change anything here.
+      ansible.builtin.get_url:
+        url: "{{ rapid7_agent_installer_url }}"
+        dest: "{{ remote_rapid7_agent_path }}"
+        mode: '0744'
+      # throws an error when the host isn't online
+      when: ansible_architecture == "x86_64" and not r7_agent_exist.stat.exists
+
+    - name: Install Rapid7 agent (if not installed), check token if this fails
+      when: ansible_architecture == "x86_64"
+      # don't change anything here. must be "command" to work
+      ansible.builtin.command: "{{ remote_rapid7_agent_path }} install_start --token {{ rapid7_agent_token }} "
+      args:
+        creates: "{{ rapid7_agent_binary_path }}"
+
+    - name: Rapid7 service running and auto-start
+      when: ansible_architecture == "x86_64"
+      ansible.builtin.service:
+        name: ir_agent
+        state: started
+        enabled: true
+
+    - name: Gather Insight agent information via --version
+      when: ansible_architecture == "x86_64"
+      ansible.builtin.command: "{{ rapid7_agent_binary_path }} --version"
+      register: r7_agent_version_json
+      changed_when: false
+
+    - name: Gather Insight agent information via logs
+      when: ansible_architecture == "x86_64"
+      # must use shell to use piping. Command doesn't support it.
+      ansible.builtin.shell: "grep 'Agent Info' /opt/rapid7/ir_agent/components/insight_agent/common/agent.log | tail -1l"
+      register: r7_agent_version_log_line
+      changed_when: false
+
+    # - name: Install Velociraptor client (agent) as DEB file hosted on LAN
+    #   when: ansible_architecture == "x86_64"
+    #   ansible.builtin.apt:
+    #     # name: velociraptor-client
+    #     # requires xz-utils installed to work
+    #     deb: "{{ installers_baseurl }}/velociraptor_0.6.4-2_client.deb"
+    #     state: present
+    #     # when: inventory_hostname not in groups.no_lan_access
+
+    # - name: Mark velociraptor binary as executable
+    #   when: ansible_architecture == "x86_64"
+    #   # for some stupid reason the DEB installer doesn't do this.
+    #   ansible.builtin.file:
+    #     path: /usr/local/bin/velociraptor_client
+    #     mode: u+x,g+x,o+x
+    #     # when: inventory_hostname not in groups.no_lan_access
+
+    # - name: Velociraptor agent service running and auto-starts
+    #   when: ansible_architecture == "x86_64"
+    #   ansible.builtin.service:
+    #     name: velociraptor_client
+    #     state: started
+    #     enabled: true
+    #     # ignore_errors: true
+    #     # when: inventory_hostname not in groups.no_lan_access
+
+    # - name: Install CheckMK agent as DEB file hosted on LAN
+    #   ansible.builtin.apt:
+    #     deb: "{{ installers_baseurl }}/check-mk-agent_2.0.0p24-a8b346022300c9d3_all.deb"
+    #     state: present
+    #     # when: inventory_hostname not in groups.no_lan_access
+
+    # - name: Check-MK agent service running and auto-starts
+    #   ansible.builtin.service:
+    #     name: check-mk-agent-async
+    #     state: started
+    #     enabled: true
+
+    # - name: Check if checkMK agent is listening - local TCP port 6556 is listening/open according to local system
+    #   # must use shell to use piping. Command doesn't support it.
+    #   ansible.builtin.shell: "ss -tp state listening sport = :6556 | grep -q 6556"
+    #   changed_when: false

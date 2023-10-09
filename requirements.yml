@@ -1,0 +1,40 @@
+---
+collections:
+   # - name: community.general  # duplicate name, overwritten below
+   - name: geerlingguy.mac
+   # - name: geerlingguy.ansible-collection-mac
+   - name: ansible.netcommon
+   - name: community.general
+     version: 6.3.0
+   - name: community.dns
+   - name: community.google
+   - name: community.vmware
+   - name: community.windows
+   - name: containers.podman
+   - name: amazon.aws
+   - name: ansible.posix
+   - name: ansible.utils
+   - name: ansible.windows
+
+#  - name: geerlingguy.php_roles
+#    version: 0.9.3
+#    source: https://galaxy.ansible.com
+
+#- name: https://github.com/ansible-collections/community.general.git
+#  type: git
+#  version: main
+
+# - name: https://github.com/geerlingguy/ansible-collection-mac
+#  type: git
+#  version: main
+
+# - name: https://github.com/feffi/ansible-macos-softwareupdate.git
+#  type: git
+#  version: devel # causes error
+
+# - name: feffi.macos-softwareupdate
+#  version: 1.9.6
+
+# - src: https://github.com/feffi/ansible-macos-softwareupdate.git
+#  name: feffi.macos-softwareupdate
+#  type: git

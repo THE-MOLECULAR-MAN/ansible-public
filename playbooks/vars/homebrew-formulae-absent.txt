@@ -1,0 +1,14 @@
+dd-utility
+ilmbase
+ipmitool
+localtunnel
+moreutils
+pipx
+prettier
+rar
+sqlmap
+tnftp
+ttyrec
+typescript
+virtualenv
+youtube-dl

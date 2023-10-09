@@ -1,0 +1,16 @@
+
+export CLICOLOR=1
+export LSCOLORS=GxFxCxDxBxegedabagaced
+alias python=python3
+export PATH="/usr/local/sbin:$PATH"
+
+# added manually so Ansible/Python will work with SSL:
+CERT_PATH=/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/certifi/cacert.pem
+export SSL_CERT_FILE=
+export REQUESTS_CA_BUNDLE=
+
+
+# added manually so Ansible/Python will work with SSL:
+CERT_PATH=/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/certifi/cacert.pem
+export SSL_CERT_FILE=/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/certifi/cacert.pem
+export REQUESTS_CA_BUNDLE=/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/certifi/cacert.pem

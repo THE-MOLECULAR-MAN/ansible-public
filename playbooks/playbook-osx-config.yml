@@ -1,0 +1,277 @@
+---
+- name: Configure OSX for dev & troubleshooting, install updates
+  hosts: localhost
+  connection: local
+
+  # https://github.com/TalkingQuickly/ansible-osx-setup/blob/master/ansible_osx.yml
+  # https://www.ansiblepilot.com/articles/permanently-set-remote-system-wide-environment-variables-on-linux-ansible-module-lineinfile/
+  # https://gist.github.com/pmkay/e09034971b6f23214fd9f95a3e6d1c44
+  # https://github.com/lafarer/ansible-role-osx-defaults/tree/master/tasks
+
+  # softwareupdate --no-scan --install --product-types XCode
+  #
+  # TODO:
+  # git config --global core.fileMode true
+
+  vars:
+    user_home_directory: "/Users/{{ lookup('env', 'USER') }}"
+    source_code_repos_home_path: "{{ user_home_directory }}/source_code"
+    macos_softwareupdate:
+      frequency: 1
+      recommended: true
+      install: true
+      debug: true
+      webkit: true
+
+    # mas_packages:
+    # - {name: iMovie, id: 408981434}
+
+    docker_images_wanted:
+      - {name: alpine}
+      - {name: ubuntu, tag: "latest"} # latest is always LTS, rolling isn't necessarily LTS
+      - {name: ubuntu, tag: "20.04"}  # Focal Fossa, don't want rolling (non-LTS)
+      - {name: ubuntu, tag: "22.04"}  # Jammy Jellyfish
+      - {name: portainer/portainer-docker-extension, tag: "2.17.1"}
+      - {name: moby/buildkit, tag: buildx-stable-1}
+      - {name: debian, tag: "stable-slim"}
+      - {name: debian, tag: "stable"}
+      - {name: debian, tag: "bullseye-slim"}
+      - {name: debian, tag: "bullseye"}
+      # - {name: centos, tag: centos7}
+
+    # osx_services_to_run:
+      # - com.docker.helper
+      # - application.com.docker.docker.724886.734418
+      # - com.docker.vmnetd   # stopped working in Jan 2023 for some reason, commented out.
+
+  # roles:
+  # - { role: geerlingguy.mac }
+
+  tasks:
+    - name: Load variables from variables-homelab.yaml
+      ansible.builtin.include_vars:
+        file: variables-homelab.yaml
+
+    - name: Get the path to ZSH
+      ansible.builtin.command: which zsh
+      become: false
+      register: zsh_path
+      changed_when: false
+
+    - name: "Ensure homebrew zsh is in allowed shells"
+      ansible.builtin.lineinfile:
+        path: /etc/shells
+        line: "{{ zsh_path.stdout }}"
+      become: true
+      become_user: root
+
+    - name: "Create default zsh profile and env variables"
+      ansible.builtin.template:
+        src: templates/zprofile_template
+        dest: "{{ user_home_directory }}/.zshrc"
+        owner: "{{ lookup('env', 'USER') }}"
+        mode: 0644
+        force: yes
+
+    - name: Set /etc/paths paths
+      ansible.builtin.lineinfile:
+        path: /etc/paths
+        state: present
+        line: "{{ item }}"
+      become: true
+      become_user: root
+      with_items: "{{ osx_path_directories_in_paths_file }}"
+
+    - name: Verifying Brew is in a good spot before proceeding
+      ansible.builtin.command: brew doctor
+      register: brew_doctor
+      changed_when:
+        - '"Fetching"   in brew_doctor.stdout'
+        - '"Removing"   in brew_doctor.stdout'
+        - '"Installing" in brew_doctor.stdout'
+      failed_when:
+        # I don't really care about warnings like Ruby version
+        - '"Error" in brew_doctor.stdout'
+        # - '"Your system is ready to brew" not in brew_doctor.stdout'
+
+    - name: Install docker
+      community.general.homebrew:
+        name:  docker
+        state: present
+
+    - name: Ensure Docker Desktop is running, running first w/ async
+      ansible.builtin.command: open -a docker
+      async: 90   # sometimes it REALLY does take 60+ seconds to launch
+      args:
+        creates: "{{ user_home_directory }}/.docker/run/docker-cli-api.sock"
+        # launchctl start com.docker.helper
+
+    - name: Create a symbolic link for Google drive
+      ansible.builtin.file:
+        src: "{{ user_home_directory }}/Google Drive/My Drive/"
+        dest: "$HOME/g_drive"
+        state: link
+
+    - name: Create a symbolic link for source code path
+      ansible.builtin.file:
+        src: "{{ user_home_directory }}/Google Drive/My Drive/source_code/"
+        dest: "{{ source_code_repos_home_path }}"
+        state: link
+
+    # This one randomly fails sometimes, hence the retries
+    # This must be before the Disabled Developer Mode
+    - name: Configure Homebrew for developer mode and autofix issues. It's normal for this to take a while
+      ansible.builtin.command: "brew style --fix"
+      register: result
+      retries: 3
+      delay: 3
+      until: result.rc == 0
+      changed_when: '"no offenses detected" not in result.stdout'
+
+    - name: Disable developer mode in Homebrew - use stable releases
+      ansible.builtin.command: "brew developer off"
+      changed_when: false
+
+    - name: Update homebrew itself and all installed Homebrew packages
+      community.general.homebrew_cask:
+        update_homebrew: yes
+        upgrade_all: yes
+
+    - name: Uninstall Java, if it is present
+      ansible.builtin.file:
+        path: /Library/Internet\ Plug-Ins/JavaAppletPlugin.plugin
+          /Library/PreferencePanes/JavaControlPanel.prefPane
+          "{{ user_home_directory }}/Library/Application\ Support/Oracle/Java"
+        state: absent
+
+    - name: Install any outstanding updates for Apple Store apps
+      ansible.builtin.command: mas upgrade
+      register: ret
+      changed_when: '"Nothing found to upgrade" not in ret.stderr'
+
+    - name: Install homebrew packages, don't necessarily upgrade them
+      community.general.homebrew:
+        name: "{{ item.name }}"
+        state: "{{ item.state | default('present') }}"
+      with_items: "{{ homebrew_packages }}"
+
+    - name: Download (not install) Mac OS X operating system updates
+      ansible.builtin.command: softwareupdate --download --recommended
+      register: ret
+      changed_when: '"No updates are available" not in ret.stderr'
+
+    # - name: Ensure services/daemons are running
+    #   community.general.launchd:
+    #     name: "{{ item }}"
+    #     state: started
+    #   become: true
+    #   become_user: root
+    #   with_items: "{{ osx_services_to_run }}"
+
+    - name: Install homebrew cask packages, don't check for updates
+      community.general.homebrew_cask:
+        name: "{{ item.name }}"
+        state: "{{ item.state | default('present') }}"
+      with_items: "{{ homebrew_cask_packages }}"
+
+    - name: Install and update Python (pip3) packages
+      ansible.builtin.pip:
+        name: "{{ item.name }}"
+        state: "{{ item.state | default('latest') }}"
+        extra_args: --user
+      with_items: "{{ pip_packages_for_osx }}"
+      # some packages like setuptools fail, but it's fine
+      failed_when: false
+      # Requirement already satisfied
+
+    - name: Pull latest version of Docker images
+      community.docker.docker_image:
+        name: "{{ item.name }}"
+        tag: "{{ item.tag | default('latest') }}"
+        source: pull
+      with_items: "{{ docker_images_wanted }}"
+
+    - name: Apply my config for Microsoft Visual Studio Code
+      ansible.builtin.template:
+        src: templates/vscode-settings.template
+        dest: "{{ user_home_directory }}/Library/Application Support/Code/User/settings.json"
+        owner: "{{ lookup('env', 'USER') }}"
+        mode: 0644
+        force: yes
+
+    - name: Test if Brother printer driver is installed
+      ansible.builtin.stat:
+        path: "/Library/Printers/Brother/Filter/commandtobrother.bundle/Contents/MacOS/commandtobrother"
+      register: brother_printer_driver_exist
+
+    - name: Download Brother printer driver (if not installed)
+      # don't change anything here.
+      ansible.builtin.get_url:
+        url: "http://installers.int.butters.me:8081/Brother_PrinterDrivers_MonochromeLaser.pkg"
+        dest: "/tmp/"
+        mode: '0744'
+      # throws an error when the host isn't online
+      when: not brother_printer_driver_exist.stat.exists
+
+    - name: Install the printer driver
+      ansible.builtin.command: installer -pkg /tmp/Brother_PrinterDrivers_MonochromeLaser.pkg -target /Applications
+      when: not brother_printer_driver_exist.stat.exists
+
+    # - name: Checkout third party Git repos
+    #   ansible.builtin.git:
+    #     repo: "{{ item }}"
+    #     dest: "{{ source_code_repos_home_path }}/third_party/{{ item | urlsplit('path') | basename | split('.') | first }}"
+    #     force: no    # helps avoid errors and change detection
+    #   register: repo_clone
+    #   failed_when:
+    #     - repo_clone.failed
+    #     - not 'Local modifications exist ' in repo_clone.msg
+    #   with_items: "{{ other_git_repos }}"
+
+    - name: Checkout my personal Git repos
+      ansible.builtin.git:
+        repo: "{{ item }}"
+        dest: "{{ source_code_repos_home_path }}/{{ item | urlsplit('path') | basename | split('.') | first }}"
+        force: no                   # helps avoid errors and change detection
+      register: repo_clone
+      failed_when:
+        - repo_clone.failed
+        - not 'Local modifications exist ' in repo_clone.msg
+      with_items: "{{ my_git_repos }}"
+
+    # must be after git repos are downloaded
+    - name: Mark git hook scripts as executable
+      ansible.builtin.command: cd {{ source_code_repos_home_path }} && gfind . -type f -path '*/.git/hooks/*' ! -executable -print -exec chmod u+x {} \;
+      register: mark_git_hooks_as_exec
+      changed_when: mark_git_hooks_as_exec.stdout | length > 0
+
+      # ############### must be logged in to Apple account for this to work
+      # - name: Install Apple App Store (mas) software
+      #   ansible.builtin.command: mas install "{{ item.id }}"
+      #   with_items: "{{ mas_packages }}"
+      #   register: ret
+      #   changed_when: '"already installed" not in ret.stdout'
+
+      # - name: Set OS X to automatically install OS updates
+      #   community.general.osx_defaults:
+      #     domain: com.apple.SoftwareUpdate
+      #     key: AutomaticCheckEnabled
+      #     type: int
+      #     value: 1
+      #   become: true
+      #   become_user: root
+      #   when: inventory_hostname not in groups.no_lan_access
+
+      # causes issues on work laptop, requires the GUI version of XCode
+      # not just the CLI version
+      # - name: Agree to xcode license, otherwise it blocks most installs
+      #   ansible.builtin.command: sudo xcodebuild -license accept
+      #   become: true
+      #   changed_when: false   # no way to tell if it changed, no output
+
+      # causes issues on work laptop
+      # - name: Install xcode CLI tools after update
+      #   ansible.builtin.command: xcodebuild -runFirstLaunch
+      #   become: true
+      #   register: xcode_firstlaunch_output
+      #   changed_when: '"Install Started" in xcode_firstlaunch_output.stdout'

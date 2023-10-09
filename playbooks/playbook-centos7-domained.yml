@@ -1,0 +1,118 @@
+---
+# NEEDS_TO_BE_SANTIZIED_BEFORE_PUBLIC_RELEASE
+# switch it over to a dedicated ansible service account
+- name: CentOS 7 playbook for permanent VMs, like proper hostnames and agents
+  hosts: linux_centos7:!golden_images
+  # hosts: linux_centos7_small_test
+  ignore_unreachable: true
+  become: true
+  become_method: ansible.builtin.sudo
+
+  # temporary:
+  remote_user: "thrawn"
+
+  vars:
+    ansible_become_password: password
+    ansible_service_account_username: "svc-ansible"
+    domain_suffix_caps: "INT.BUTTERS.ME"
+    domain_suffix_lower: "{{ domain_suffix_caps|lower }}"
+    active_directory_user_to_test: "newuser2@{{ domain_suffix_caps }}"
+    ansible_service_account_username_with_domain:
+      "{{ ansible_service_account_username }}@{{ domain_suffix_caps }}"
+
+  tasks:
+    - name: Make sure hostname is full FQDN with proper domain suffix
+      ansible.builtin.hostname:
+        name: "{{ ansible_hostname }}.{{ domain_suffix_lower }}"
+
+    - name: Yum packages required for joining domain
+      ansible.builtin.yum:
+        name: authconfig,krb5-workstation,pam_krb5,samba-common,
+          oddjob-mkhomedir,sudo,ntp,samba-winbind-modules
+        state: present
+
+    - name: Verify joined to domain
+      ansible.builtin.command: id {{ active_directory_user_to_test }}
+      register: ad_status
+      changed_when: false
+      # I think ignore_errors might be required. the command sometimes returns
+      # non-zero error codes when things are okay
+      # ignore_errors: true
+
+    - name: Rapid7 agent installed, running, and auto-start
+      ansible.builtin.service:
+        name: ir_agent
+        state: started
+        enabled: true
+
+    # - name: Install Velociraptor client (agent) as CentOS 7 RPM file
+    #     hosted on LAN
+    #   ansible.builtin.yum:
+    #     name: "http://installers.int.butters.me:8081/\
+    #       velociraptor_client_centos7.rpm"
+    #     state: present
+
+    # - name: Velociraptor agent service running and auto-starts
+    #   ansible.builtin.service:
+    #     name: velociraptor_client
+    #     state: started
+    #     enabled: true
+
+    - name: Install CheckMK agent as CentOS 7 RPM file hosted on LAN
+      ansible.builtin.yum:
+        name: "http://installers.int.butters.me:8081/check-mk-agent-vanilla.rpm"
+        state: present
+
+    - name: Check-MK agent service running and auto-starts
+      ansible.builtin.service:
+        name: check-mk-agent.socket
+        state: started
+        enabled: true
+
+    - name: Verify CheckMK agent is listening (TCP 6556)
+      ansible.builtin.wait_for:
+        port: 6556
+        delay: 5
+        timeout: 10
+        msg: "Timeout waiting for 6556 to respond"
+      register: port_check
+      ignore_errors: true
+
+    - name: Allow members of AD group Domain Admins sudo access
+      community.general.sudoers:
+        name: domain-admin-local-sudo
+        state: present
+        # don't use the built-in one with spaces or start it with a % in
+        # Ansible, has problems
+        # make a new AD group called "domainadmins" that has
+        # 1 member group - "Domain Admins"
+        group: "domainadmins@{{ domain_suffix_caps }}"
+        commands: ALL
+
+    - name: Allow members of AD group localadmins sudo access
+      community.general.sudoers:
+        name: localadmins-local-sudo
+        state: present
+        group: "localadmins@{{ domain_suffix_caps }}"
+        commands: ALL
+
+    # the service account provisioning must be AFTER the sudoers edits
+    - name: Provision ansible's service account from AD on local system
+        and create the proper home directories
+      # Module remote_tmp /home/svc-ansible@int.butters.me/.ansible/tmp
+      # did not exist and was created with a mode of 0700, this may cause
+      # issues when running as another user.
+      # To avoid this, create the remote_tmp dir
+      # with the correct permissions manually
+      ansible.builtin.file:
+        path: "~/.ssh"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_service_account_username_with_domain }}"
+        group: "{{ ansible_service_account_username_with_domain }}"
+
+    - name: Set ansible service account ssh public key
+      ansible.posix.authorized_key:
+        user: "{{ ansible_service_account_username_with_domain }}"
+        state: present
+        key: "{{ lookup('file', keyfile_fullpath) }}"

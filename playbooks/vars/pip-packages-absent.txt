@@ -1,0 +1,12 @@
+# Python Packages that should NOT BE INSTALLED in pip
+# example usage:
+# sudo python3 -m pip uninstall -r pip-constraints.txt
+ansible-lint
+dalle-mini     # AI image generation that sucks
+jax            # graphics card acceleration
+jaxlib         # graphics card acceleration
+# - {name: pyyaml, state: absent}   # conflict with homebrew package
+transformers
+vqgan-jax       # graphics card acceleration
+yamllint        # duplicate of homebrew
+youtube-dl     # superceded by yt-dlp

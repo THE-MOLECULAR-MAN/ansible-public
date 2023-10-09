@@ -1,0 +1,112 @@
+---
+    - name: Old way of homebrew formula install - slow method
+      hosts: localhost
+      connection: local
+    
+      vars:
+        homebrew_packages:
+          - {name: ack}
+          - {name: ansible-lint}                # Lint for Ansible
+          - {name: ansible}
+          - {name: autoconf}
+          - {name: automake}
+          - {name: autopep8}                    # Lint for Python
+          - {name: awscli}                      # AWS Command Line tools
+          - {name: bash-completion}
+          - {name: bat}
+          - {name: brotli}
+          - {name: ca-certificates}
+          - {name: cask}
+          - {name: certbot}
+          - {name: cmake}
+          - {name: colordiff}
+          - {name: coreutils}
+          - {name: exiftool}                     # viewing/cleaning EXIF data in JPEGs
+          - {name: fd}
+          - {name: ffmpeg}
+          - {name: findutils}
+          - {name: fio}
+          - {name: fstrm}                        # for cleaning up SSDs
+          - {name: gawk}
+          - {name: gcc}
+          - {name: gh}
+          - {name: git-secrets}
+          - {name: git}
+          - {name: glib}
+          - {name: gnu-sed}
+          - {name: gnu-tar}
+          - {name: gnupg}
+          - {name: gnutls}
+          - {name: gsed}                         # has more features than OSX's sed
+          - {name: hadolint}                     # lint for Dockerfile
+          - {name: htop}
+          - {name: icu4c}
+          - {name: imagemagick}                  # accessing PNG/JPG metadata
+          - {name: imath}
+          - {name: jq}
+          - {name: jsonlint}                     # has npm as a dependency
+          - {name: krb5}
+          - {name: lame}
+          - {name: less}
+          - {name: libtool}
+          - {name: libyaml}
+          - {name: lynx}                         # Browser for some web arching stuff
+          - {name: make}
+          - {name: mas}                          # CLI for Apple Store
+          - {name: netcat}
+          - {name: nmap}
+          - {name: npm}                          # only for jsonlist as dependency
+          - {name: openssl}
+          - {name: osx-cpu-temp}
+          - {name: p11-kit}
+          - {name: p7zip}
+          - {name: pkg-config}
+          - {name: pv}
+          - {name: pycparser}
+          - {name: pylint}                       # Lint tool for Python
+          - {name: pyyaml}                       # Lint tool for YAML files
+          - {name: ruby-build}
+          - {name: ruby}
+          - {name: samba}                        # Testing SMB/CIFS connections
+          - {name: screen}
+          - {name: shellcheck}                   # Lint for bash scripts
+          - {name: shfmt}
+          - {name: shyaml}
+          - {name: six}
+          - {name: smartmontools}                # Checking SMART data on disks
+          - {name: speedtest-cli}                # bandwidth testing from CLI
+          - {name: sponge}
+          - {name: swagger-codegen}             # generate Swagger files from Python modules
+          - {name: sysbench}
+          - {name: telnet}                      # rudamentary TCP tool
+          - {name: terraform}
+          - {name: trash}                         # CLI for OSX Trash bin
+          - {name: tree}
+          - {name: unar}                        # sic, yes unar
+          - {name: unzip}
+          - {name: wakeonlan}                   # wake up sleeping remote systems
+          - {name: watch}                       # call a command repeatedly
+          - {name: wget}                        # downloading files
+          - {name: whois}                       # DNS registrar lookups
+          - {name: xmlstarlet}                  # provides xmllint
+          - {name: xz}
+          - {name: yamllint}                    # Lint for YAML files
+          - {name: zsh-completions}
+          - {name: zstd}
+
+
+      tasks:
+
+        # took 329 seconds, about 100x slower than "command"
+        # https://docs.ansible.com/ansible/latest/collections/community/general/homebrew_module.html#parameters
+        - name: Install homebrew packages, don't necessarily upgrade them
+          community.general.homebrew:
+            name: "{{ item.name }}"
+            state: "present"
+            upgrade_options: keep-tmp
+          with_items: "{{ homebrew_packages }}"
+
+          # update_homebrew is default to false
+          # upgrade_all  is default to false
+          # could use:
+          #   

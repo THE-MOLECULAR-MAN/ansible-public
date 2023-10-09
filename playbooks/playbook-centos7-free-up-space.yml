@@ -1,0 +1,86 @@
+---
+- name: Clean up free space - CentOS
+  hosts: linux_centos7
+  ignore_unreachable: true
+  become: true
+  become_method: ansible.builtin.sudo
+  vars:
+    journalctl_max_disk_usage: "100MB"
+    journalctl_max_retention: "1week"
+    paths_to_delete:
+      - /root/.composer/cache
+      - /var/cache/yum
+      - /root/.cache
+
+  handlers:
+    - name: Restart journald
+      ansible.builtin.service:
+        name: journald
+        state: restarted
+      listen: "Restart journald"
+
+  tasks:
+    # ignore anything but errors on this, don't care about feedback
+    # Why it is done this way and not using the built-in module:
+    # https://docs.ansible.com/ansible/latest/collections/ansible/builtin/yum_module.html
+
+    - name: Clean up old Yum caches
+      ansible.builtin.command: yum clean all
+      changed_when: False
+      args:
+        warn: false
+
+    - name: Clean up unnecessary/unused Yum packages to save space
+      ansible.builtin.yum:
+        autoremove: true
+
+    - name: Set limit on journald logs total size
+      # https://www.freedesktop.org/software/systemd/man/journald.conf.html
+      become: true
+      ansible.builtin.replace:
+        path: /etc/systemd/journald.conf
+        regexp: '^#SystemMaxUse.*'
+        replace: "{{ ('SystemMaxUse=' + journalctl_max_disk_usage) }}"
+        backup: true
+      notify:
+        - Restart journald
+
+    - name: Set limit on journald logs retention period
+      # https://www.freedesktop.org/software/systemd/man/journald.conf.html
+      become: true
+      ansible.builtin.replace:
+        path: /etc/systemd/journald.conf
+        regexp: '^#MaxRetentionSec.*'
+        replace: "{{ ('MaxRetentionSec=' + journalctl_max_retention) }}"
+        backup: true
+      notify:
+        - Restart journald
+
+    - name: Vacuum logs
+      ansible.builtin.command: journalctl --vacuum-size=1K
+
+    - name: Remove unused yum packages
+      ansible.builtin.command: "package-cleanup --quiet --leaves | xargs yum remove -y"
+
+    - name: Keep only 2 recent kernels
+      ansible.builtin.command: package-cleanup -y --oldkernels --count=2
+
+    - name: Truncate log files
+      ansible.builtin.command: find /var -name "*.log" -exec truncate {} --size 0 \;
+
+    - name: Truncate log files part 2
+      ansible.builtin.command: find /var/log -type f -exec truncate {} --size 0 \;
+
+    - name: Search for files to be deleted
+      ansible.builtin.find:
+        paths: "{{ paths_to_delete }}"
+        file_type: any
+      register: files_to_delete
+
+    - name: Delete paths from list
+      ansible.builtin.file:
+        path: "{{ paths_to_delete }}"
+        state: absent
+
+    - name: LAST- trim the free space now
+      ansible.builtin.command: fstrim --verbose --all

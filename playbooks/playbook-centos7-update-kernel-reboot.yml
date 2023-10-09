@@ -1,0 +1,95 @@
+---
+# based on : https://gist.github.com/kgriffs/8e058d78474836102cd84bf2051c4d68
+- name: Update CentOS kernel and reboot
+  hosts: linux_centos7
+  ignore_unreachable: true
+  become: true
+  become_method: ansible.builtin.sudo
+  vars:
+    # ansible_become_password: password
+    reboot_file_path: "/var/run/reboot-required"
+    remote_kernel_version: "{{ ansible_kernel.split('-')|first }}"
+
+  tasks:
+    - name: Calculate MD5 of grub config before making any changes
+      ansible.builtin.stat:
+        path: "/boot/grub2/grub.cfg"
+        checksum_algorithm: md5
+      register: grub_config_md5_before
+
+    - name: Make sure ELRepo is installed
+      ansible.builtin.yum:
+        # name: https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm
+        name: elrepo-release
+        state: present
+
+    - name: Install latest mainline kernel
+      ansible.builtin.yum:
+        name: kernel-ml,kernel,kernel-headers,kernel-tools,kernel-tools-libs,
+          kernel-debug-devel
+        state: latest
+        enablerepo: elrepo-kernel
+      notify:
+        - Flag for reboot needed
+
+    - name: Keep only 2 old kernels, 3 total
+      # don't change anything in this one.
+      ansible.builtin.command: package-cleanup -y --oldkernels --count=2
+      register: package_cleanup_result
+      changed_when: '"Removed" in package_cleanup_result.stdout'
+
+    - name: Update grub to use latest kernels
+      ansible.builtin.command: grub2-mkconfig -o /boot/grub2/grub.cfg
+      # disabling ability to detect changes
+      changed_when: false
+
+    - name: Calculate MD5 of grub config after making changes
+      ansible.builtin.stat:
+        path: "/boot/grub2/grub.cfg"
+        checksum_algorithm: md5
+      register: grub_config_md5_after
+
+    - name: Debug files - Different
+      ansible.builtin.debug:
+        msg: |
+          "Grub config file hash changed"
+      when:
+        - grub_config_md5_after.stat.checksum != grub_config_md5_before.stat.checksum
+      notify:
+        - Flag for reboot needed
+
+    - name: Force latest kernel on next reboot
+      ansible.builtin.command: grub2-set-default 0
+      # disabling ability to detect changes
+      changed_when: false
+      # grep saved /boot/grub2/grubenv
+      # awk -F\' '$1=="menuentry " {print $2}' /etc/grub2.cfg
+      # seems like running the mkconfig command sorts them newest to oldest
+
+    - name: Disable SELinux in case the new kernel reinstalled it
+      ansible.posix.selinux:
+        state: disabled
+      notify: Flag for reboot needed
+
+    - name: Check if reboot is necessary
+      ansible.builtin.stat:
+        path: "{{ reboot_file_path }}"
+      register: is_reboot_necessary
+
+    - name: Reboot if necessary
+      ansible.builtin.reboot:
+      when:
+        - is_reboot_necessary.stat.exists
+
+    - name: 'Check kernel version older than v5.0'
+      ansible.builtin.debug:
+        msg: 'Old kernel detected: {{ ansible_kernel }}'
+      when:
+        - remote_kernel_version is version('5.0', operator='lt', strict=True)
+
+  handlers:
+    - name: Flag for reboot needed
+      ansible.builtin.file:
+        path: "{{ reboot_file_path }}"
+        state: touch
+        mode: u=rw,g=r,o=r

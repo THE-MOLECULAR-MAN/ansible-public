@@ -1,0 +1,9 @@
+{
+    "window.restoreWindows": "preserve",
+    "security.workspace.trust.untrustedFiles": "open",
+    "editor.rulers": [
+        80,
+        120
+    ],
+    "window.zoomLevel": 1
+}

@@ -1,0 +1,276 @@
+---
+# ./vars/variables-homelab.yaml
+ansible_service_account_username: "svc-ansible"
+local_ubuntu_admin_username: "thrawn"
+
+domain_admin_username: "thonker.adm"
+domain_suffix_caps: "INT.BUTTERS.ME"
+domain_suffix_lower: "{{ domain_suffix_caps | lower }}"
+domain_admin_username_with_domain: "{{ domain_admin_username }}@{{ domain_suffix_lower }}"
+active_directory_user_to_test: "newuser2@{{ domain_suffix_caps }}"
+ansible_service_account_username_with_domain:
+  "{{ ansible_service_account_username }}@{{ domain_suffix_lower }}"
+keyfile_fullpath: "{{ '../keys/' + ansible_service_account_username +
+  '.pub' }}"
+golden_image_sshd_public_keys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHPyjTmpuXj4zlXHcsGanpeQhJJ1fxlBeF7ZdiFCiZFH"
+  - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDjS0e3v4PqzB+OD5utGjFqIBrxKaCrAT+pnsTRTYKblKsw3BmkIWLUjE6s4jAp5/MBa8nl4ELudZE0dFA+rXfTIKsyJBX2jsQnbZFK0pcm2VexkflLpMHwlhdYXBXCjdzEmEqeRo4xnWCXkkqv08l65PE4lHAURvXUSz7v3r6lSuzldlLohvXhn1ZtVdAKMD8OPF1E/eTLF6d3P80S8w7SkisJZYQDIx/OuCho666CEFYWm1FtNz+rfRTHNbytNLxRN86spRnQ4khdSIFl6mt2bB8z2wbKENChxBtegFcafyrw9tx+vbD5t+y3UZG2zBSv2jBBBrgMg7lkrppkjixGAuVpUoGa/gyxlQNkbFOqsql8Qce8N4WI35kMpr6X8ozHf1KoXJ90JRj1MbmTL08GE90kpZDyPCYADd55QAhXp3yyKq9/9TQHHaaU4h7lC4pcGNC39e61LGZ/aH4v4y92X9VTqsM3YZEKx/hdaX3LEb62mq6c9chyMJ+pFgbuW/U="
+  - "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEjxOSeeqzxqD6hSKKjhxObO4PFm0Xm7y2RdKg1QscSK/uqd/hSZ9GWtafrl3yDucitfzJZNlcbzupYeH3cMPSY="
+  - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDtFcn++YhLpl4VvmJGHE/VOYwtJt4PW6RAfcVYRxu/pjGZdauSg/9yIGGHizTsN82eov0p63RPbAO8uKNI+wEZQDtrQ8lgt0LCy2gEejhVJ97I52NQzdZl19Kt8XkvHELKgHKicXlMbQSJb/E5TLDcakaOZZukGBZJv8Zi6C+pcXmx5a3JVMSGvUH60K3zglyj61CEcmFXLPiV0h2Zwq8Ou59UCHON4xGDDbZ8v8EoQxDQ2qZD0bnMfdcnSgx9QwEj+MN3h3853pKpP+RXbV/Br+asieqRqvGr58QnYHbFw6fDSngfH7jvO3jskP9Oc+EAwlKN/2chqvg18Ud/UcusNog4piK8DIGM+rnO3EcbpCF9X0F1on8NuxfyG13mYaRHMjyAh89YzmA63JGzoEZsuh4zQnIt5VRszedGyDsJiZECqyrm7RD7kexNAFq+g+S46kNlL0Mg4f+X1osqBfTTq2YiI+mQjxLlF6oqFB1B+JOzrhiv8Ptw1VsjtqX1vNpA4+MKnzqJDO5NeqOiTAyXZv6gvBPJwb3EzT9/kKv/3mgMii9N1CRTDq5u3yI4rlmUgSagbJOBKErnRyemzM0zgWzrAL7IlZnmLlKPMRbclpkOheRE1kiQ2xXa4NJvaTY+TzRvDbkfnhjUL2In7WJxQCs1qnKz1W9rN5gSY6gu0Q== thrawn-rsa"
+
+rapid7_agent_installer_url: "https://s3.amazonaws.com/com.rapid7.razor.public/endpoint/agent/1692037243/linux/x86_64/agent_control_1692037243_x64.sh"
+rapid7_agent_token: "us:REDACTED"
+
+installers_baseurl: "https://public-homelab-download-p3r6vv6ks0wt522kkv.s3.amazonaws.com/installers"
+remote_rapid7_agent_path: "/tmp/r7_agent_installer.sh"
+rapid7_agent_binary_path: "/opt/rapid7/ir_agent/ir_agent"
+new_host_timezone: "America/New_York"
+nodejs_installer_path: "/tmp/nodejs_repo_installer.sh"
+nodejs_repo_installer_url: "https://deb.nodesource.com/setup_18.x"
+journalctl_max_disk_usage: "100MB"
+journalctl_max_retention: "1week"
+apt_lock_timeout: "120"
+
+# not sure if next line is required...
+ansible_ssh_private_key_file: ~/.ssh/thonker.adm
+# pam_config_file_contents: |
+#   Name: activate mkhomedir
+#   Default: yes
+#   Priority: 900
+#   Session-Type: Additional
+#   Session:
+#           required                        pam_mkhomedir.so umask=0022 skel=/etc/skel
+
+sysctl_additions: |
+  net.ipv4.conf.all.accept_redirects=0
+  net.ipv4.conf.default.accept_redirects=0
+  net.ipv4.conf.all.secure_redirects=0
+  net.ipv4.conf.default.secure_redirects=0
+
+# ubuntu_min_required_repos: |
+#   deb http://us.archive.ubuntu.com/ubuntu focal-backports main restricted universe multiverse
+#   deb http://us.archive.ubuntu.com/ubuntu focal main restricted
+#   deb http://us.archive.ubuntu.com/ubuntu focal multiverse
+#   deb http://us.archive.ubuntu.com/ubuntu focal-security main restricted
+#   deb http://us.archive.ubuntu.com/ubuntu focal-security multiverse
+#   deb http://us.archive.ubuntu.com/ubuntu focal-security universe
+#   deb http://us.archive.ubuntu.com/ubuntu focal universe
+#   deb http://us.archive.ubuntu.com/ubuntu focal-updates main restricted
+#   deb http://us.archive.ubuntu.com/ubuntu focal-updates multiverse
+#   deb http://us.archive.ubuntu.com/ubuntu focal-updates universe
+
+# ubuntu_exclude_repos: |
+#   deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main
+
+reboot_file_path: "/var/run/reboot-required"
+
+ubuntu_files_to_delete: |
+  /etc/apt/sources.list.d/microsoft-prod.list
+  /etc/apt/sources.list.d/us_archive_ubuntu_com_ubuntu.list
+  /etc/apt/sources.list.d/us_archive_ubuntu_com_ubuntu.list.save
+  /etc/apt/sources.list.d/webupd8team-ubuntu-y-ppa-manager-focal.list
+  /etc/apt/sources.list.d/nodesource.list
+  /etc/apt/sources.list.d/nodesource.list.save
+  /etc/apt/sources.list.d/github-cli.list
+  /etc/apt/sources.list.d/github-cli.list.save
+  /etc/apt/sources.list.curtin.old
+  /etc/apt/sources.list.save
+
+homebrew_packages:  
+  # - {name: docker-machine, state: absent}
+  # - {name: git-credential-manager}
+  # - {name: internetarchive}
+  - {name: ack}
+  - {name: ansible-lint}                # Lint for Ansible
+  - {name: ansible}
+  - {name: autoconf}
+  - {name: automake}
+  - {name: autopep8}                    # Lint for Python
+  - {name: awscli}                      # AWS Command Line tools
+  - {name: bash-completion}
+  - {name: bat}
+  - {name: brotli}
+  - {name: ca-certificates}
+  - {name: cask}
+  - {name: certbot}
+  - {name: cmake}
+  - {name: colordiff}
+  - {name: coreutils}
+  - {name: dd-utility, state: absent}
+  - {name: exiftool}                     # viewing/cleaning EXIF data in JPEGs
+  - {name: fd}
+  - {name: ffmpeg}
+  - {name: findutils}
+  - {name: fio}
+  - {name: fstrm}                        # for cleaning up SSDs
+  - {name: gawk}
+  - {name: gcc}
+  - {name: gh}
+  - {name: git-secrets}
+  - {name: git}
+  - {name: glib}
+  - {name: gnu-sed}
+  - {name: gnu-tar}
+  - {name: gnupg}
+  - {name: gnutls}
+  - {name: gsed}                         # has more features than OSX's sed
+  - {name: hadolint}                     # lint for Dockerfile
+  - {name: htop}
+  - {name: icu4c}
+  - {name: ilmbase, state: absent}       # causes problems according to some
+  - {name: imagemagick}                  # accessing PNG/JPG metadata
+  - {name: imath}
+  - {name: ipmitool, state: absent}      # deprecated
+  - {name: jq}
+  - {name: jsonlint}                     # has npm as a dependency
+  - {name: krb5}
+  - {name: lame}
+  - {name: less}
+  - {name: libtool}
+  - {name: libyaml}
+  - {name: localtunnel, state: absent}   # just issues that keep coming up
+  - {name: lynx}                         # Browser for some web arching stuff
+  - {name: make}
+  - {name: mas}                          # CLI for Apple Store
+  - {name: moreutils, state: absent}     # provides conflicting sponge command
+  - {name: netcat}
+  - {name: nmap}
+  - {name: npm}                          # only for jsonlist as dependency
+  - {name: openssl}
+  - {name: osx-cpu-temp}
+  - {name: p11-kit}
+  - {name: p7zip}
+  - {name: pipx, state: absent}          # causes problems according to some
+  - {name: pkg-config}
+  - {name: prettier, state: absent}      # issues that keep coming up
+  - {name: pv}
+  - {name: pycparser}
+  - {name: pylint}                       # Lint tool for Python
+  - {name: pyyaml}                       # Lint tool for YAML files
+  - {name: rar, state: absent}
+  - {name: ruby-build}
+  - {name: ruby}
+  - {name: samba}                        # Testing SMB/CIFS connections
+  - {name: screen}
+  - {name: shellcheck}                   # Lint for bash scripts
+  - {name: shfmt}
+  - {name: shyaml}
+  - {name: six}
+  - {name: smartmontools}                # Checking SMART data on disks
+  - {name: speedtest-cli}                # bandwidth testing from CLI
+  - {name: sponge}
+  - {name: sqlmap, state: absent}
+  - {name: swagger-codegen}             # generate Swagger files from Python modules
+  - {name: sysbench}
+  - {name: telnet}                      # rudamentary TCP tool
+  - {name: terraform}
+  - {name: tnftp, state: absent}          # Basic FTP tool
+  - {name: trash}                         # CLI for OSX Trash bin
+  - {name: tree}
+  - {name: ttyrec, state: absent}
+  - {name: typescript, state: absent}   # issues keep coming up
+  - {name: unar}                        # sic, yes unar
+  - {name: unzip}
+  - {name: virtualenv, state: absent}   # conflict with pip package?
+  - {name: wakeonlan}                   # wake up sleeping remote systems
+  - {name: watch}                       # call a command repeatedly
+  - {name: wget}                        # downloading files
+  - {name: whois}                       # DNS registrar lookups
+  - {name: xmlstarlet}                  # provides xmllint
+  - {name: xz}
+  - {name: yamllint}                    # Lint for YAML files
+  - {name: youtube-dl, state: absent}   # superceded by yt-dlp
+  - {name: zsh-completions}
+  - {name: zstd}
+
+homebrew_cask_packages:
+  # - {name: firefox}
+  # - {name: gdisk, state: absent}
+  # - {name: git-credential-manager-core}
+  # - {name: puppetlabs/puppet/puppet-agent, state: absent} # brew untap puppetlabs/puppet
+  # - {name: signal}
+  # - {name: 1password}     # already installed via other methods on work laptop
+  - {name: amorphousdiskmark, state: absent} # disk benchmarker
+  - {name: android-platform-tools}        # flashing Android ROMs
+  - {name: android-studio}                # flashing Android ROMs
+  - {name: audacity}                      # audio editing
+  - {name: burp-suite}                    # troubleshooting appsec
+  - {name: ccleaner, state: absent}       # hot garbage, hate it.
+  - {name: chromium}                      # backup browser for troubleshooting
+  - {name: classicftp, state: absent}
+  - {name: discord}                       # accessing various channels
+  - {name: docker}                        # docker containers/images
+  - {name: filebeat, state: absent}
+  - {name: gimp}                          # basic image editing
+  - {name: handbrake, state: absent}      # converting video files
+  - {name: iterm2}                        # better terminal that OSX
+  - {name: jdownloader, state: absent}    # batch downloader
+  - {name: krisp}                         # noise cancelling
+  - {name: lastpass, state: absent}       # superceded by 1Password
+  - {name: libreoffice}                   # replacement for MS Excel
+  - {name: microsoft-remote-desktop}      # remoting into Windows Servers
+  - {name: openshot-video-editor, state: absent}
+  - {name: osquery, state: absent}
+  - {name: owasp-zap, state: absent}      # sucks, use Burp instead
+  - {name: postman}                       # API testing
+  - {name: powershell}
+  - {name: puppet-agent, state: absent}   # not using puppet in my homelab anymore
+  - {name: sensiblesidebuttons}           # makes mice with 3+ buttons work
+  - {name: spotify, state: absent}        # music and podcasts
+  - {name: sublime-text2, state: absent}  # crashes on launch
+  - {name: unetbootin, state: absent}     # cannot install on work computer
+  - {name: vagrant, state: absent}
+  - {name: visual-studio-code}            # code editing
+  - {name: vlc}                           # media playing
+  - {name: webrecorder-player}            # opens WARC files
+  - {name: wireshark, state: absent}      # not allowed on work computers
+
+pip_packages_for_osx:
+  # pip package names are case INSENSITIVE
+  - {name: ansible-lint, state: absent}
+  - {name: dalle-mini, state: absent}     # AI image generation that sucks
+  # - {name: insightconnect-integrations-plugin-spec-tooling}
+  # - {name: insightconnect-integrations-validators}
+  # - {name: insightconnect-plugin-runtime}   # causes errors
+  - {name: jax, state: absent}            # graphics card acceleration
+  - {name: jaxlib, state: absent}         # graphics card acceleration
+  # - {name: pyyaml, state: absent}   # conflict with homebrew package
+  - {name: transformers, state: absent}
+  - {name: urllib3}
+  - {name: vqgan-jax, state: absent}      # graphics card acceleration
+  - {name: "pip>=23.1.2"}                 # really needs a newer version
+  - {name: certifi}
+  - {name: distlib}
+  - {name: docutils}
+  - {name: filelock}
+  - {name: matplotlib}
+  - {name: numpy}
+  - {name: pep8}                          # Lint for Python
+  - {name: pycodestyle}                   # Lint for Python
+  - {name: s3transfer}
+  - {name: selenium}                      # for web browsing/archiving
+  - {name: setuptools}
+  - {name: virtualenv}
+  - {name: yamllint, state: absent}       # duplicate of homebrew
+  - {name: youtube-dl, state: absent}     # superceded by yt-dlp
+  - {name: "yt-dlp>=2023.3.4"}            # great tool, but needs newer version
+  - {name: websockets}
+  - {name: wheel}
+
+osx_path_directories_in_paths_file:
+  - /bin
+  - /opt/homebrew/bin         # wasn't present on personal laptop, but is present on work laptop
+  - /sbin
+  - /usr/bin
+  - /usr/local/bin
+  - /usr/sbin
+  - /usr/local/sbin             # directory does not exist by default
+  - /usr/local/opt/icu4c/bin    # must have icu4c package installed
+  - /usr/local/opt/icu4c/sbin   # must have icu4c package installed
+
+my_git_repos:
+  - https://github.com/THE-MOLECULAR-MAN/ansible.git
+  - https://github.com/THE-MOLECULAR-MAN/homelab-public.git
+  - https://github.com/THE-MOLECULAR-MAN/web-archiving.git
+  # - https://github.com/rapid7/presales-engineering.git
+

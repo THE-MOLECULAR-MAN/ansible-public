@@ -1,0 +1,60 @@
+    - name: "ignore unreachable hosts"
+      block:
+        - delegate_to: localhost
+          name: "name2"
+          ansible.builtin.command: ping -c1 "{{ inventory_hostname }}"
+      rescue:
+       - name: "name3"
+         ansible.builtin.fail:
+           ansible.builtin.msg: "{{ inventory_hostname }} not accessible. End of play."
+
+    - name: "name4"
+      ansible.builtin.debug:
+        ansible.builtin.msg: "Host {{ inventory_hostname }} continue play."
+
+
+
+
+    # - name: provision ansible service account user's home directories
+    #  ansible.builtin.user:
+    #    # set_password_expire\r\nKeyError: 'getspnam(): name not found'\r\n", "msg": "MODULE FAILURE\nSee stdout/stderr for the exact error", "rc": 1}
+    #    # modify_user_usermod\r\nValueError: invalid literal for int() with base 10: ''\r\n", "msg": "MODULE FAILURE\nSee stdout/stderr for the exact error", "rc": 1}
+    #    name: "{{ ansible_service_account_username_with_domain }}"
+    #    # expires: -1
+    #    create_home: true
+
+
+
+    - name: Verify CheckMK agent is listening (TCP 6556)
+      # https://docs.checkmk.com/latest/en/wato_monitoringagents.html
+      ansible.builtin.wait_for:
+        # TODO: verify it is actually working on the endpoint in the web app
+        # IT SEEMS LIKE MY POLICY IN CHECKMK is screwing with it
+        # Don't forget you have to add the host inside CheckMK
+        # and then force update on changes inside there
+        # maybe reboot endpoint?
+        #
+        # THEN add intermediate tests like service checking, ps aux, etc
+        # cat /etc/services | grep 6556 # NOTHING!
+        # sudo ufw allow 6556/tcp
+        # sudo ufw enable
+        # https://docs.checkmk.com/latest/en/agent_linux.html
+        # manual tests:
+        # sudo ss -tulwnp | grep 6556
+        # nmap -Pn -p22,6556 idr-collector3.int.butters.me
+        # sudo tcpdump -i ens160 port 6556
+        # sudo tcpdump -i ens160 host 10.0.1.24
+        # sudo tcpdump host 10.0.1.24 | grep -v " ARP,\| ICMP echo"
+        # telnet localhost 6556
+        # sudo ufw status verbose
+        # docker can cause problems with this
+        # find /etc -type f -path '*check_mk*'
+        # ps aux | grep mk
+        # systemctl list-units | grep mk
+        # ps ax | grep inetd
+        # maybe something is wrong with the installer?
+        port: 6556
+        timeout: 3
+        wait: 1
+      # ignore_errors: true
+      delegate_to: localhost

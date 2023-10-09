@@ -1,0 +1,28 @@
+---
+- name: Authentication and priv escalation test
+  hosts: linux_centos7
+  ignore_unreachable: true
+  gather_facts: True  # don't use cached facts since updating the kernel
+  become: true
+  become_method: ansible.builtin.sudo
+  vars:
+    kernel_version: "{{ ansible_kernel.split('-')|first }}"
+
+  tasks:
+    - name: Fail if the O/S is not detected as CentOS 7.0 or later
+      ansible.builtin.fail:
+        msg: This playbook is written for CentOS 7.0 and later
+      when:
+        - ansible_os_family != 'RedHat'
+        - ansible_distribution_major_version == "7"
+
+    - name: Kernel version from facts
+      ansible.builtin.debug:
+        msg: '{{ ansible_kernel }}'
+      when:
+        - kernel_version is version('5.0', operator='lt', strict=True)
+
+    - name: Test authentication and priv esc
+      ansible.builtin.command: grep -q root /etc/shadow
+      become_user: root
+      changed_when: false

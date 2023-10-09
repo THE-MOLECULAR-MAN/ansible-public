@@ -1,0 +1,178 @@
+---
+- name: Basic Ubuntu Linux 20.04 bootstrap
+  hosts: debian_family
+  become: true
+  become_method: ansible.builtin.sudo
+  ignore_unreachable: true
+  # ansible_become_password: password
+
+  vars:
+    services_autostart_and_running:
+      - "ntp"
+      - "unattended-upgrades"
+      - "fstrim.timer"
+
+  handlers:
+    - name: Restart journald
+      ansible.builtin.service:
+        # name: journald
+        name: systemd-journald
+        state: restarted
+      listen: "Restart journald"
+
+  tasks:
+    - name: Load variables from variables-homelab.yaml
+      ansible.builtin.include_vars:
+        file: variables-homelab.yaml
+
+    - name: Set the time zone
+      community.general.timezone:
+        name: "{{ new_host_timezone }}"
+
+    # this MUST be before the Set desired Apt repos task, otherwise it fails
+    - name: Remove bad and duplicate Apt repo files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items: "{{ ubuntu_files_to_delete }}"
+
+    - name: Set Apt repositories for Ubuntu 64 bit, not ARM (Raspberry Pi)
+      when: ansible_distribution == 'Ubuntu' and ansible_architecture == "x86_64"
+      ansible.builtin.template:
+        src: templates/ubuntu_sources_template.list
+        dest: "/etc/apt/sources.list"
+        owner: "root"
+        mode: 0644
+        force: yes
+        backup: yes
+
+    - name: "Fix any Apt package issues, force update cache"
+      ansible.builtin.apt:
+        state: fixed
+        name: "*"
+        update_cache: true
+        lock_timeout: "{{ apt_lock_timeout }}"
+
+    # apt may still have a lock on this
+    - name: "Finishing configuration on any unfinished packages"
+      ansible.builtin.command: "dpkg --configure -a"
+      register: dpkg_output
+      changed_when: dpkg_output.stdout | length > 0
+      retries: 2
+      delay: 10
+
+    # - name: Remove cdrom repo from apt sources
+    #   # probably can't change this since the cdrom name details can change
+    #   # based on version and stuff.
+    #   ansible.builtin.lineinfile:
+    #     path: /etc/apt/sources.list
+    #     regexp: 'cdrom'
+    #     line: ''
+
+    - name: Fix ICMP redirect vuln in /etc/sysctl.conf
+      ansible.builtin.blockinfile:
+        dest: /etc/sysctl.conf
+        backup: true
+        content: "{{ sysctl_additions }}"
+
+    - name: Upgrade all packages to the latest version, clean up old packages
+      # there is not a flag for just security updates like there is with yum
+      ansible.builtin.apt:
+        name: "*"
+        state: latest
+        # since I don't know how long it has been since apt-get update has
+        # been run, force it. It could cause occasional problems with VMs
+        # that haven't been powered on in a long time if you don't do this.
+        # this will slow things down a little bit.
+        update_cache: true
+        # autoclean: true
+        # autoremove: true
+        lock_timeout: "{{ apt_lock_timeout }}"
+      retries: 2
+      delay: 10
+
+    - name: Remove Apt packages that should NOT be installed
+      # competing agents that use the same ports as agents I use
+      # also dnsmasq service (DNS caching)
+      ansible.builtin.apt:
+        name: nrpe,nagios-common,nagios-plugins,zabbix-release,
+          fping,wazuh-agent,dnsmasq-utils,lm-sensors,npm,nodejs,
+          cloud-guest-utils,datadog-agent,datadog-signing-keys,
+          velociraptor-client,check-mk-agent
+        # xinetd - required by checkMK
+        state: absent
+        purge: true
+        lock_timeout: "{{ apt_lock_timeout }}"
+
+    - name: Install standard Ubuntu packages
+      ansible.builtin.apt:
+        name: apt-file,apt-transport-https,arping,autoconf,automake,
+          build-essential,ca-certificates,cifs-utils,cmake,coreutils,curl,
+          dnsutils,ethtool,fdupes,ffmpeg,g++,gcc,git,gnupg,
+          gnupg-agent,grep,iftop,imagemagick,iperf,jq,jsonlint,krb5-user,
+          ldap-utils,libnss-winbind,libpam-winbind,libtool,libxml2-utils,
+          lsb-release,lsof,make,mlocate,net-tools,netcat,nfs-client,nmap,ntp,
+          ntpdate,openssh-server,openssl,pylint,python3-pip,
+          samba-client,screen,sed,snap,software-properties-common,
+          sysstat,systemd,tar,tcpdump,tcpflow,telnet,traceroute,tree,
+          unattended-upgrades,unzip,util-linux,vim,wget,winbind,xz-utils,
+          youtube-dl,zip
+        state: present
+        lock_timeout: "{{ apt_lock_timeout }}"
+
+    - name: Install Ubuntu packages for non-Raspberry Pi
+      ansible.builtin.apt:
+        name: python-is-python3
+        state: present
+        lock_timeout: "{{ apt_lock_timeout }}"
+      when: ansible_distribution == 'Ubuntu' and ansible_architecture == "x86_64"
+
+    # necessary, do not remove; especially if new services were installed
+    # if this doesn't exist then you'll occasionally get random errors about
+    # services not working
+    - name: Force systemd to reread configs before accessing services
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: List of services to auto-start and running
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      with_items: "{{ services_autostart_and_running }}"
+
+    - name: Set limit on journald logs total size
+      # https://www.freedesktop.org/software/systemd/man/journald.conf.html
+      become: true
+      ansible.builtin.replace:
+        path: /etc/systemd/journald.conf
+        regexp: '^#SystemMaxUse.*'
+        replace: "{{ ('SystemMaxUse=' + journalctl_max_disk_usage) }}"
+        backup: true
+      notify:
+        - Restart journald
+
+    - name: Set limit on journald logs retention period
+      # https://www.freedesktop.org/software/systemd/man/journald.conf.html
+      become: true
+      ansible.builtin.replace:
+        path: /etc/systemd/journald.conf
+        regexp: '^#MaxRetentionSec.*'
+        replace: "{{ ('MaxRetentionSec=' + journalctl_max_retention) }}"
+        backup: true
+      notify:
+        - Restart journald
+
+    - name: "Upgrade Pip3 to latest version"
+      ansible.builtin.command: "/usr/bin/python3 -m pip install -U pip"
+      register: pip3_upgrade_output
+      changed_when: '"Successfully installed" in pip3_upgrade_output.stdout'
+
+    - name: Check if reboot required
+      ansible.builtin.stat:
+        path: "{{ reboot_file_path }}"
+      register: reboot_required_file
+
+    - name: Reboot if required
+      ansible.builtin.reboot:
+      when: reboot_required_file.stat.exists

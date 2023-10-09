@@ -1,0 +1,13 @@
+---
+- name: Change hostname playbook
+  hosts: "{{ new_fqdn_hostname }}"
+  become: true
+  become_method: sudo
+  ignore_unreachable: false
+  vars:
+    new_fqdn_hostname: "default-error.local"
+
+  tasks:
+    - name: Assign new fully qualified domain name
+      ansible.builtin.hostname:
+        name: "{{ new_fqdn_hostname }}"

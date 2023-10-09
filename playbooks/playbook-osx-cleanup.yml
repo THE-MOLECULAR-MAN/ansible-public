@@ -1,0 +1,45 @@
+---
+- name: Clean up disk on OS X, removes unnecessary files
+  hosts: localhost
+  connection: local
+
+  vars:
+    user_home_diretory: "/Users/{{ lookup('env', 'USER') }}"
+    source_code_repos_home_path: "{{ user_home_diretory }}/source_code"
+
+  tasks:
+    - name: Load variables from variables-homelab.yaml
+      ansible.builtin.include_vars:
+        file: variables-homelab.yaml
+
+    - name: Clean up brew cache
+      ansible.builtin.command: brew cleanup --verbose --prune=all
+      register: brewcacheoutput
+      changed_when: '"This operation has freed" in brewcacheoutput.stdout'
+
+    - name: Move Zoom files that aren't mp4 to OSX trash
+      # pre-req: brew package named "trash"
+      ansible.builtin.command: find "$HOME/Documents/Zoom" -type f -mindepth 1 ! -name '*.mp4' -exec trash {} \+
+
+    - name: Delete empty Zoom directories
+      ansible.builtin.command: find "$HOME/Documents/Zoom" -empty -type d -mindepth 1 -delete
+
+    - name: Delete OS X user cache files
+      ansible.builtin.file:
+        path: "{{ user_home_diretory }}/Library/Caches"
+        state: absent
+      failed_when: false      # can't delete parent directory
+
+    - name: Clear NPM Logs
+      ansible.builtin.file:
+        path: "{{ user_home_diretory }}/.npm/_logs"
+        state: absent
+      become: true
+      become_user: root
+
+    - name: Clean up NPM cache
+      ansible.builtin.command: sudo npm cache clean --force --verbose
+      become: true
+      become_user: root
+      register: npmcacheoutput
+      changed_when: '"This operation has freed" in brewcacheoutput.stdout'

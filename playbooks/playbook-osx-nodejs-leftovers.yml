@@ -1,0 +1,28 @@
+---
+- name: NodeJS leftovers for OS X
+  hosts: localhost
+  connection: local
+
+  vars:
+    node_installations:
+      - {version: 12.20.2, active: yes}
+      - {version: 13.14.0, active: no}
+
+    npm_packages:
+      - {name: js-yaml, state: absent}
+      - {name: less, state: absent}
+      - {name: localtunnel, state: absent}
+      - {name: npm-check-updates}
+      - {name: prettier, state: absent}
+      - {name: swagger-cli, state: absent}
+      - {name: typescript, state: absent}
+      - {name: typings, state: absent}
+
+  tasks:
+    - name: Install Node.JS (npm) packages
+      community.general.npm: 
+        name: "{{ item.name }}"
+        state: "{{ item.state | default('latest') }}"
+        version: "{{ item.version | default() }}"
+        global: yes
+      with_items: "{{ npm_packages }}"

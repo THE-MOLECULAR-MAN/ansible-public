@@ -1,0 +1,22 @@
+---
+- name: Ubuntu - remove unused agents
+  hosts: debian_family:!golden_images
+  ignore_unreachable: true
+  become: true
+  become_method: ansible.builtin.sudo
+
+  tasks:
+    - name: Load variables from variables-homelab.yaml
+      ansible.builtin.include_vars:
+        file: variables-homelab.yaml
+
+    - name: Remove Velociraptor agent
+      when: ansible_architecture == "x86_64"
+      ansible.builtin.apt:
+        name: velociraptor-client
+        state: absent
+
+    - name: Remove CheckMK agent
+      ansible.builtin.apt:
+        name: check-mk-agent
+        state: absent

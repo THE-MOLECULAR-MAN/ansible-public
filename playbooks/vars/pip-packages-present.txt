@@ -1,0 +1,24 @@
+# Python Packages to be Installed using pip
+# python3 -m pip install --user --upgrade -r pip-requirements.txt
+# https://pip.pypa.io/en/stable/reference/requirements-file-format/
+# pip package names are case INSENSITIVE
+# insightconnect-integrations-plugin-spec-tooling
+# insightconnect-integrations-validators
+# insightconnect-plugin-runtime   # causes errors
+urllib3
+pip >= 23.1.2                 # really needs a newer version
+certifi
+distlib
+docutils
+filelock
+matplotlib
+numpy
+pep8                          # Lint for Python
+pycodestyle                   # Lint for Python
+s3transfer
+selenium                      # for web browsing/archiving
+setuptools
+virtualenv
+yt-dlp >= 2023.3.4            # great tool, but needs newer version
+websockets
+wheel

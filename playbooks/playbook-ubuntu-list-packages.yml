@@ -1,0 +1,26 @@
+---
+- name: Fetch and compare Ubuntu package lists
+  hosts: debian_family
+  # become: true
+  # become_method: ansible.builtin.sudo
+  ignore_unreachable: true
+
+  tasks:
+  # - name: Load variables from variables-homelab.yaml
+  #   ansible.builtin.include_vars:
+  #     file: variables-homelab.yaml
+
+  # https://github.com/lepe/scripts/blob/master/compare_ubuntu_apt.pl
+  - name: List all apt installed packages
+    ansible.builtin.shell: "apt list --installed | cut -d '/' -f1 | sort --unique"
+    register: apt_package_list_output
+    changed_when: false
+    no_log: true
+
+  - name: Save package list on Ansible controller
+    ansible.builtin.copy:
+      content: "{{ apt_package_list_output.stdout }}"
+      dest: "/Users/tim/tmp/apt-list_{{ ansible_hostname }}.txt"
+      force: yes
+      mode: 0644
+    delegate_to: localhost

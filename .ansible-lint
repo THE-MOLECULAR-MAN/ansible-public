@@ -1,0 +1,10 @@
+# .config/ansible-lint.yml
+skip_list:  # or 'skip_list' to silence them completely
+  - experimental  # all rules tagged as experimental
+  - ignore-errors
+  - '403'
+  - package-latest
+  - yaml
+  - no-changed-when
+  - risky-shell-pipe
+  - latest[git]     # git issues dumb warning

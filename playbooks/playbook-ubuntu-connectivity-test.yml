@@ -1,0 +1,16 @@
+---
+- name: Ubuntu Test Playbook - testing auth and connectivity
+  hosts: debian_family
+  become: true
+  become_method: ansible.builtin.sudo
+  ignore_unreachable: true
+
+  tasks:
+    - name: Load variables from variables-homelab.yaml
+      ansible.builtin.include_vars:
+        file: variables-homelab.yaml
+
+    - name: Test authentication and priv esc
+      become_user: root
+      ansible.builtin.command: grep -q root /etc/shadow
+      changed_when: false

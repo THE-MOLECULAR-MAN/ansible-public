@@ -1,0 +1,35 @@
+---
+- name: Windows Server basic
+  hosts: windows_servers
+
+  vars:
+    # ansible_become_password: password
+    new_host_timezone: "America/New_York"
+
+  tasks:
+    - name: Set the time zone
+      community.general.timezone:
+        name: "{{ new_host_timezone }}"
+
+    - name: Ensure 7-Zip is installed via Chocolatey
+      chocolatey.chocolatey.win_chocolatey:
+        name: 7zip
+        state: present
+
+    - name: Rapid7 agent installed, runnining, and auto-start
+      ansible.builtin.service:
+        name: ir_agent
+        state: started
+        enabled: true
+
+    - name: Install all critical and security updates
+      ansible.windows.win_updates:
+        category_names:
+          - CriticalUpdates
+          - SecurityUpdates
+        state: installed
+      register: update_result
+
+    - name: Reboot host if required
+      ansible.windows.win_reboot:
+      when: update_result.reboot_required
